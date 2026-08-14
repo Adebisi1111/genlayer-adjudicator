@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agent Payment Adjudicator — Demo</title>
+<style>
+  :root{
+    --bg:#1c130c;
+    --panel:#241810;
+    --panel2:#2e1f14;
+    --butter:#e8c98a;
+    --butter-dim:#c9a86a;
+    --text:#f3e7d3;
+    --muted:#a08a6b;
+    --green:#7bd88f;
+    --red:#e08a7a;
+    --line:#3a2a1a;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55;
+  }
+  .wrap{max-width:880px;margin:0 auto;padding:32px 20px 64px}
+  header{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:28px}
+  .badge{display:inline-block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--bg);background:var(--butter);padding:3px 10px;border-radius:999px;font-weight:700}
+  h1{font-size:30px;margin:14px 0 6px;color:var(--butter)}
+  .sub{color:var(--muted);font-size:15px;max-width:620px}
+  h2{color:var(--butter);font-size:20px;margin:36px 0 12px;border-left:3px solid var(--butter);padding-left:10px}
+  p{color:var(--text)}
+  .flow{display:grid;gap:14px;margin:18px 0}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;position:relative}
+  .step .n{position:absolute;top:14px;right:16px;color:var(--butter-dim);font-weight:700;font-size:13px}
+  .step h3{margin:0 0 6px;font-size:16px;color:var(--butter)}
+  .step code{background:var(--panel2);padding:2px 6px;border-radius:6px;color:var(--butter);font-size:13px}
+  .step small{color:var(--muted);display:block;margin-top:6px}
+  .outcomes{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:18px 0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .card.win{border-color:#3c5a3c}
+  .card.refund{border-color:#5a3c3c}
+  .card h4{margin:0 0 8px;font-size:15px}
+  .card.win h4{color:var(--green)}
+  .card.refund h4{color:var(--red)}
+  .card ul{margin:0;padding-left:18px;color:var(--muted);font-size:14px}
+  .links{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0}
+  a.btn{display:inline-block;background:var(--butter);color:var(--bg);text-decoration:none;
+    font-weight:700;font-size:14px;padding:10px 16px;border-radius:10px}
+  a.btn.ghost{background:transparent;color:var(--butter);border:1px solid var(--butter)}
+  .state{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;font-size:14px;color:var(--muted)}
+  .state b{color:var(--butter)}
+  pre{background:#15100a;border:1px solid var(--line);border-radius:10px;padding:14px;overflow:auto;font-size:13px;color:var(--butter-dim)}
+  footer{margin-top:40px;border-top:1px solid var(--line);padding-top:18px;color:var(--muted);font-size:13px}
+  .note{font-size:13px;color:var(--muted);margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="badge">GenLayer Intelligent Contract</span>
+    <h1>Agent Payment Adjudicator</h1>
+    <p class="sub">A reusable dispute-resolution primitive for the agentic economy. A payer deposits contested funds; an LLM judge (run through GenLayer's equivalence principle) decides delivery, then value is routed to the agent or refunded to the payer.</p>
+  </header>
+
+  <h2>How it works</h2>
+  <div class="flow">
+    <div class="step">
+      <span class="n">1</span>
+      <h3>Open dispute (payable)</h3>
+      <code>open_dispute(agent, service_url, claim)</code>
+      <small>Payer deposits the contested amount into the contract. State is stored as a <code>Dispute</code> record.</small>
+    </div>
+    <div class="step">
+      <span class="n">2</span>
+      <h3>Fetch live service state</h3>
+      <code>gl.nondet.web.render(service_url)</code>
+      <small>The contract pulls the actual service output at resolution time — not a stale claim.</small>
+    </div>
+    <div class="step">
+      <span class="n">3</span>
+      <h3>LLM judgment via equivalence principle</h3>
+      <code>gl.nondet.exec_prompt(...)</code> → <code>gl.vm.run_nondet(...)</code>
+      <small>Leader and validators each evaluate delivery independently; outputs must agree for consensus.</small>
+    </div>
+    <div class="step">
+      <span class="n">4</span>
+      <h3>Route the value</h3>
+      <code>gl.get_contract_at(...).emit_transfer(value=...)</code>
+      <small>DELIVERED → pay agent. NOT_DELIVERED → refund payer. Double-resolution is rejected.</small>
+    </div>
+  </div>
+
+  <h2>Two possible outcomes</h2>
+  <div class="outcomes">
+    <div class="card win">
+      <h4>✓ Service delivered</h4>
+      <ul>
+        <li>LLM judge returns <code>DELIVERED</code></li>
+        <li>Contract emits transfer to <b>agent</b></li>
+        <li>Dispute marked resolved</li>
+      </ul>
+    </div>
+    <div class="card refund">
+      <h4>✗ Service not delivered</h4>
+      <ul>
+        <li>LLM judge returns <code>NOT_DELIVERED</code></li>
+        <li>Contract refunds <b>payer</b></li>
+        <li>Dispute marked resolved</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>State design</h2>
+  <div class="state">
+    <b>Dispute</b> dataclass — <code>id: str</code>, <code>payer: str</code>, <code>agent: str</code>, <code>amount: u256</code>, <code>service_url: str</code>, <code>claim: str</code>, <code>status: str</code>, <code>verdict: str</code>. Disputes held in a <code>TreeMap</code>; counter is a <code>u256</code>. Clear, native GenLayer storage — no thin wrappers.
+  </div>
+
+  <h2>Verified</h2>
+  <p>3 direct-mode tests pass (refund-on-non-delivery, pay-agent-on-delivery, double-resolution revert) alongside the boilerplate suite — 46 tests total.</p>
+  <pre>pytest tests/direct/  →  46 passed</pre>
+
+  <h2>Live deployment</h2>
+  <div class="links">
+    <a class="btn" href="https://explorer-bradbury.genlayer.com/address/0x890BE3B1168779Cde231793a0D599f7D08A06Cc8" target="_blank" rel="noopener">View on Bradbury Explorer ↗</a>
+    <a class="btn ghost" href="https://studio.genlayer.com/contract/0xC9F91741F438163d9b13F0b6666984E74995AA71" target="_blank" rel="noopener">View on Studio ↗</a>
+    <a class="btn ghost" href="https://github.com/Adebisi1111/genlayer-adjudicator" target="_blank" rel="noopener">GitHub Repository ↗</a>
+  </div>
+  <p class="note">Deployed from a dedicated test wallet (0x61fd…) on GenLayer Bradbury Testnet. Main wallet untouched.</p>
+
+  <footer>
+    Agent Payment Adjudicator · GenLayer Intelligent Contract · submitted as a Builder contribution.
+    This is a visual demo — no wallet connection or on-chain transactions are performed from this page.
+  </footer>
+</div>
+</body>
+</html>
