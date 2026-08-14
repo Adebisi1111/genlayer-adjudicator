@@ -1,60 +1,56 @@
-# Agent Payment Adjudicator — GenLayer Intelligent Contract
+# GenLayer Agent Toolkit — Intelligent Contracts
 
-A reusable GenLayer Intelligent Contract that resolves payment disputes between
-autonomous agents using **real GenLayer consensus logic** (the equivalence
-principle) over live web data and LLM judgment.
+Two reusable GenLayer Intelligent Contracts for the agentic economy, each built
+with **real GenLayer consensus logic** (live web data + LLM judgment run through
+the equivalence principle) and clear `TreeMap`/`u256` state design.
 
-## Why this exists
+## 1. Agent Payment Adjudicator
 
-The agentic economy (x402 payments, ERC-8004 agent identity, A2A) builds the
-happy path — but none of those layers ship **dispute resolution**. If a payer
-pays an agent and the service isn't delivered, there's no neutral judge. This
-contract fills that gap: it fetches the live service state, asks an LLM to
-judge delivery, and releases or refunds the deposited funds accordingly.
+Resolves payment disputes between autonomous agents. A payer deposits contested
+funds; on `resolve()` the contract fetches the live service state, asks an LLM to
+judge delivery via the equivalence principle, then emits a value transfer to the
+agent (delivered) or refunds the payer (not delivered).
 
-## How it works
+- `contracts/agent_payment_adjudicator.py`
+- `tests/direct/test_agent_payment_adjudicator.py`
+- Deployed (Bradbury): `0x890BE3B1168779Cde231793a0D599f7D08A06Cc8`
+- Explorer: https://explorer-bradbury.genlayer.com/address/0x890BE3B1168779Cde231793a0D599f7D08A06Cc8
 
-1. **`open_dispute(agent, service_url, claim)`** — the payer deposits the
-   contested amount (payable). The deposit is held by the contract.
-2. **`resolve(dispute_id)`** — anyone can trigger resolution. The contract:
-   - fetches the live service page via `gl.nondet.web.render(service_url)`
-   - asks an LLM to judge delivery (`gl.nondet.exec_prompt`)
-   - runs both through the **equivalence principle**
-     (`gl.vm.run_nondet(leader, validator)`) so leader/validator outputs agree
-   - emits a value transfer to the **agent** if delivered, or refunds the
-     **payer** if not (`gl.get_contract_at(addr).emit_transfer(value=...)`)
-3. **`get_dispute(dispute_id)`** — view the current state and verdict.
+## 2. Agent Reputation Ledger
 
-## State design
+A transparent, consensus-backed reputation primitive. `record_outcome` does **not**
+trust the caller's claim: it fetches live evidence and asks an LLM to verify the
+outcome, run through `gl.vm.run_nondet(leader, validator)` so leader/validator
+outputs must agree. Only verified outcomes move an agent's score (weighted success
+rate + dispute penalty + volume tier: TRUSTED / NEUTRAL / RISKY).
 
-```python
-@allow_storage
-@dataclass
-class Dispute:
-    id: str
-    payer: str        # hex
-    agent: str        # hex
-    amount: u256
-    service_url: str
-    claim: str
-    status: str       # 'open' | 'resolved_payer' | 'resolved_agent'
-    verdict: str      # '' | 'DELIVERED' | 'NOT_DELIVERED'
-```
+- `contracts/agent_reputation_ledger.py`
+- `tests/direct/test_agent_reputation_ledger.py`
+- Deployed (Bradbury): `0x50FbE9F976F60f10F47DD19aD29929E801a0e544`
+- Explorer: https://explorer-bradbury.genlayer.com/address/0x50FbE9F976F60f10F47DD19aD29929E801a0e544
 
-Storage uses GenLayer-native `TreeMap` / `u256` (not `dict`/`list`).
+## Why these are real primitives (not thin wrappers)
+
+- Both use `gl.nondet.web.render` + `gl.nondet.exec_prompt` + the equivalence
+  principle (`gl.vm.run_nondet`) — genuine GenLayer consensus, not blind storage.
+- The adjudicator moves value based on a verified verdict.
+- The ledger rejects unverified outcome claims (reverts), so reputation can't be
+  gamed by self-assertion.
+- State is modeled with GenLayer-native `TreeMap` / `u256`.
 
 ## Run the tests
 
 ```bash
-python -m pytest tests/direct/ -q
+python -m pytest tests/direct/ -q   # 51 passed
 ```
 
-Three direct-mode tests cover: refund-on-non-delivery, pay-agent-on-delivery,
-and double-resolution revert. No server or Docker required.
+Direct-mode tests require no server or Docker.
 
-## Files
+## Demo
 
-- `contracts/agent_payment_adjudicator.py` — the contract
-- `tests/direct/test_agent_payment_adjudicator.py` — direct-mode tests
+Visual walkthrough of the adjudicator: https://adebisi1111.github.io/genlayer-adjudicator/demo/
 
+## Accounts
+
+Deployed from a dedicated test wallet (`0x61fd...`). Main wallet untouched.
 Built for the GenLayer builder contribution program.
