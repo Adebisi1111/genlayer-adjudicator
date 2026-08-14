@@ -49,11 +49,12 @@ class AgentPaymentAdjudicator(gl.Contract):
 
     def _adjudicate(self, dispute: Dispute) -> str:
         """Fetch live service state and ask the LLM to judge delivery.
-        Runs inside the equivalence principle so leader/validator agree."""
+        Runs inside the equivalence principle (canonical run_nondet_unsafe +
+        JSON decision field) so leader and validators independently agree."""
 
-        def leader() -> str:
+        def leader() -> dict:
             web_data = gl.nondet.web.render(dispute.service_url, mode="text")
-            prompt = f"""
+            prompt = f"""\
 You are an impartial adjudicator for an autonomous-agent payment dispute.
 
 DISPUTE CONTEXT:
@@ -63,16 +64,24 @@ DISPUTE CONTEXT:
 LIVE SERVICE STATE (fetched from the URL above):
 {web_data}
 
-Decide whether the service was DELIVERED or NOT DELIVERED.
-Respond with exactly one word: DELIVERED or NOT_DELIVERED.
+Decide whether the service was DELIVERED or NOT_DELIVERED.
+Respond as JSON: {{"verdict": "DELIVERED"|"NOT_DELIVERED"}}.
 """
-            return gl.nondet.exec_prompt(prompt).strip().upper()
+            res = gl.nondet.exec_prompt(prompt, response_format="json")
+            verdict = (res.get("verdict") or "").strip().upper()
+            return {"verdict": verdict if verdict in ("DELIVERED", "NOT_DELIVERED") else "NOT_DELIVERED"}
 
-        def validator(leader_out: str) -> bool:
-            return leader_out in ("DELIVERED", "NOT_DELIVERED")
+        def validator(leader_result) -> bool:
+            # Reject if leader errored; otherwise independently reproduce the
+            # task and compare the stable verdict field (real consensus).
+            if not isinstance(leader_result, gl.vm.Return):
+                return False
+            validator_verdict = leader()["verdict"]
+            leader_verdict = leader_result.calldata["verdict"]
+            return validator_verdict == leader_verdict
 
-        result = gl.vm.run_nondet(leader, validator)
-        return result
+        result = gl.vm.run_nondet_unsafe(leader, validator)
+        return result["verdict"]
 
     @gl.public.write
     def resolve(self, dispute_id: str):

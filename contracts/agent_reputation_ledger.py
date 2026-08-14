@@ -49,27 +49,43 @@ class AgentReputationLedger(gl.Contract):
         return score, tier
 
     def _verify_outcome(self, agent: str, outcome: str, evidence_url: str) -> bool:
-        # Genuine GenLayer consensus: fetch live evidence, ask an LLM to
-        # confirm the claimed outcome, and run it through the equivalence
-        # principle so leader/validator outputs agree.
-        def leader() -> str:
+        # Genuine GenLayer consensus (per docs.genlayer.com equivalence-principle):
+        # the leader fetches live evidence and asks the LLM for a STRUCTURED
+        # decision (JSON). The validator INDEPENDENTLY re-runs the same task and
+        # compares only the stable decision field, not the leader's raw output
+        # shape. This is the canonical run_nondet_unsafe + decision-field pattern.
+        ALLOWED = ("SUCCESS", "FAIL", "DISPUTED_LOST")
+
+        def leader() -> dict:
             evidence = gl.nondet.web.render(evidence_url, mode="text")
             prompt = (
                 f"An autonomous agent ({agent}) claims the job outcome was: {outcome}.\n"
                 f"Below is the live evidence fetched from {evidence_url}:\n\n"
                 f"{evidence}\n\n"
-                f"Decide ONLY with one of: SUCCESS, FAIL, DISPUTED_LOST. "
-                f"Return exactly that single word, matching the claim if the "
-                f"evidence supports it, otherwise return the correct outcome."
+                f"Decide the true outcome based ONLY on the evidence. "
+                f"Respond as JSON: {{\"decision\": \"SUCCESS\"|\"FAIL\"|\"DISPUTED_LOST\"}}."
             )
-            return gl.nondet.exec_prompt(prompt).strip().upper()
+            res = gl.nondet.exec_prompt(prompt, response_format="json")
+            # Normalize: ensure a stable decision field.
+            decision = (res.get("decision") or "").strip().upper()
+            return {"decision": decision if decision in ALLOWED else "FAIL"}
 
-        def validator(leader_out: str) -> bool:
-            return leader_out in ("SUCCESS", "FAIL", "DISPUTED_LOST")
+        def validator(leader_result) -> bool:
+            # Reject if leader errored.
+            if not isinstance(leader_result, gl.vm.Return):
+                return False
+            # Independently reproduce the leader's task and compare the DECISION
+            # field (the substance), not the raw output. This is real consensus.
+            validator_decision = leader()["decision"]
+            leader_decision = leader_result.calldata["decision"]
+            return validator_decision == leader_decision
 
-        result = gl.vm.run_nondet(leader, validator)
-        return result == outcome.upper()
+        verified = gl.vm.run_nondet_unsafe(leader, validator)
+        # The on-chain state change only proceeds if the verified decision
+        # matches what the caller claimed.
+        return verified["decision"] == outcome.upper()
 
+    @gl.public.write
     def record_outcome(self, agent: Address, outcome: str, evidence_url: str) -> None:
         """Record a job outcome for an agent, but only after consensus verifies
         the claim against live evidence.
@@ -95,6 +111,7 @@ class AgentReputationLedger(gl.Contract):
         rec.score, rec.tier = self._recompute(rec.jobs, rec.successes, rec.disputes_lost)
         self.reputations[agent_hex] = rec
 
+    @gl.public.view
     def get_reputation(self, agent: Address) -> str:
         """View an agent's reputation record as JSON."""
         agent_hex = Address(agent).as_hex
