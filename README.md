@@ -18,16 +18,18 @@ agent (delivered) or refunds the payer (not delivered).
 
 ## 2. Agent Reputation Ledger
 
-A transparent, consensus-backed reputation primitive. `record_outcome` does **not**
-trust the caller's claim: it fetches live evidence and asks an LLM to verify the
-outcome, run through `gl.vm.run_nondet(leader, validator)` so leader/validator
-outputs must agree. Only verified outcomes move an agent's score (weighted success
-rate + dispute penalty + volume tier: TRUSTED / NEUTRAL / RISKY).
+A **stake-weighted reputation primitive with slashing** — an economic-security
+layer for the agentic economy. Agents stake GEN to register (value at risk).
+`record_delivery` does not trust claims: it fetches live evidence and asks an
+LLM to verify delivery via the equivalence principle. Verdicts:
+`DELIVERED` advances reputation; `UNDELIVERED` **slashes 10% of staked GEN**.
+Reputation = stake-weighted score minus slash penalties, tiered
+TRUSTED / ESTABLISHED / NEW / UNPROVEN.
 
 - `contracts/agent_reputation_ledger.py`
 - `tests/direct/test_agent_reputation_ledger.py`
-- Deployed (Bradbury): `0x50FbE9F976F60f10F47DD19aD29929E801a0e544`
-- Explorer: https://explorer-bradbury.genlayer.com/address/0x50FbE9F976F60f10F47DD19aD29929E801a0e544
+- Deployed (Bradbury): `0x6e0eeEAa36cF264fD307f0d804cB96EbB5c5902b`
+- Explorer: https://explorer-bradbury.genlayer.com/address/0x6e0eeEAa36cF264fD307f0d804cB96EbB5c5902b
 
 ## Why these are real primitives (not thin wrappers)
 
